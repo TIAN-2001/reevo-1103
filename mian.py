@@ -125,13 +125,28 @@ class InventoryManager:
     # --- Requirement 1: View Item Details ---
     def view_item_details(self, item_id: str):
         """
-        Prints the details for a specific item.
+        Prints the details for a specific item, including total, available,
+        and bidding stock.
         """
         item = self.inventory.get(item_id)
         if item:
+            # 1. Get available stock (items on hand)
+            available_stock = item.stock
+            
+            # 2. Calculate stock currently in active bids
+            bidding_stock = 0
+            for offer in self.offers.values():
+                if offer.item_id == item_id and offer.status == "active":
+                    bidding_stock += offer.quantity
+                    
+            # 3. Calculate total stock
+            total_stock = available_stock + bidding_stock
+            
             print(
                 f"Details for {item.item_id} ({item.name}):\n"
-                f"  - Current Stock: {item.stock} units\n"
+                f"  - Total Stock (All): {total_stock} units\n"
+                f"  - Available Stock (On Hand): {available_stock} units\n"
+                f"  - Bidding Stock (In Offers): {bidding_stock} units\n"
                 f"  - Unit Price: ${item.unit_price:.2f}\n"
                 f"  - Last Restock: {item.last_restock_date}"
             )
@@ -287,14 +302,14 @@ if __name__ == "__main__":
     print("\n--- Test 2: Update Stock (Manual Adjustment) ---")
     logging.info("Recording 5 damaged units of 'TS-A'.")
     manager.update_stock('TS-A', -5)
-    manager.view_item_details('TS-A') # Should show 45 units
+    manager.view_item_details('TS-A') # Should show Total 45, Available 45, Bidding 0
     manager.update_stock('TS-A', -1000) # Test insufficient stock
 
     # --- Test for Requirement 6: One-off orders ---
     print("\n--- Test 6: Process One-Off Order ---")
     logging.info("Selling 2 units of 'TS-B' to a regular customer.")
     manager.process_one_off_order('TS-B', 2)
-    manager.view_item_details('TS-B') # Should show 18 units
+    manager.view_item_details('TS-B') # Should show Total 18, Available 18, Bidding 0
     manager.process_one_off_order('TS-B', 100) # Test insufficient stock
 
     # --- Test for Requirement 3: Create a new offer ---
@@ -304,7 +319,7 @@ if __name__ == "__main__":
     logging.info(f"Creating an offer for 20 units of 'TS-A'. Bidding ends in 5 seconds.")
     offer_id_1 = manager.create_new_offer('TS-A', 20, bid_end_time)
     print(f"Created Offer ID: {offer_id_1}")
-    manager.view_item_details('TS-A') # Stock should be 25 (45 - 20)
+    manager.view_item_details('TS-A') # Stock should be Total 45, Available 25, Bidding 20
     manager.create_new_offer('TS-A', 1000, bid_end_time) # Test insufficient stock
 
     # --- Test for Requirement 4: Tracking bids ---
@@ -330,14 +345,14 @@ if __name__ == "__main__":
     logging.info("Completing the bid...")
     manager.complete_bid(offer_id_1) # Should now succeed
     print(manager.offers[offer_id_1])
-    manager.view_item_details('TS-A') # Stock should remain 25
+    manager.view_item_details('TS-A') # Stock should be Total 25, Available 25, Bidding 0
 
     # --- Test for Requirement 5 (No Bids Case) ---
     print("\n--- Test 5b: Complete Bid (No Bids) ---")
     bid_end_time_2 = datetime.now() + timedelta(seconds=2)
     logging.info(f"Creating offer for 5 units of 'TS-B'. Bidding ends in 2 seconds.")
     offer_id_2 = manager.create_new_offer('TS-B', 5, bid_end_time_2)
-    manager.view_item_details('TS-B') # Stock should be 13 (18 - 5)
+    manager.view_item_details('TS-B') # Stock should be Total 18, Available 13, Bidding 5
     
     logging.info("Waiting 3 seconds for window to close (no bids will be placed)...")
     time.sleep(3)
@@ -347,8 +362,9 @@ if __name__ == "__main__":
     print(manager.offers[offer_id_2])
     
     logging.info("Verifying stock was returned...")
-    manager.view_item_details('TS-B') # Stock should be 18 again (13 + 5)
+    manager.view_item_details('TS-B') # Stock should be Total 18, Available 18, Bidding 0
 
     print("\n" + "="*50)
     print("ALL TESTS COMPLETE")
     print("="*50)
+
